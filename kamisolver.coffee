@@ -60,6 +60,13 @@ class Node
   constructor: (@id, @x, @y, @color) ->
     @connections = {}
 
+  clone: ->
+    newNode = new Node(@id, @x, @y, @color)
+    conns = (c for c of @connections)
+    for c in conns
+      newNode.connections[c] = 1
+    return newNode
+
   connect: (node) ->
     if not @connections[node.id]
       @connections[node.id] = 1
@@ -71,14 +78,14 @@ class Node
       node.disconnect(this)
 
   consume: (nodes, node) ->
-    conns = (parseInt(c) for c of node.connections)
+    conns = (c for c of node.connections)
     for c in conns
       node.disconnect(nodes[c])
       if @id != c
         @connect(nodes[c])
 
   adjacent: (nodes, color) ->
-    conns = (parseInt(c) for c of @connections)
+    conns = (c for c of @connections)
     for c in conns
       if nodes[c].color == color
         return true
@@ -109,7 +116,7 @@ class KamiSolver
       for i in [0..15]
         color = line[i]
         colorsSeen[color] = 1
-        node = new Node(currentID, i, lineNo, color)
+        node = new Node("N#{currentID}", i, lineNo, color)
         currentID++
         @nodes[node.id] = node
         lineNodes.push node
@@ -125,13 +132,13 @@ class KamiSolver
     @coalesceNodes(@nodes)
 
   coalesceNodes: (nodes) ->
-    idList = (parseInt(id) for id of nodes)
+    idList = (id for id of nodes)
     for id in idList
       node = nodes[id]
       continue if not node?
 
       loop
-        conns = (parseInt(c) for c of node.connections)
+        conns = (c for c of node.connections)
         consumedOne = false
         for connID in conns
           if (node.id < connID) and (node.color == nodes[connID].color)
@@ -148,14 +155,13 @@ class KamiSolver
     output = "graph G {\n"
     output += "overlap=prism;\n"
 
-    idList = (parseInt(id) for id of nodes)
+    idList = (id for id of nodes)
     for id in idList
       node = nodes[id]
       #console.log "N#{node.id} [label=\"N#{node.id} color #{node.color} (#{node.x}, #{node.y})\" ];"
       colors = colorToHex(node.color)
       output += "N#{node.id} [style=filled; fillcolor=\"#{colors[0]}\"; fontcolor=\"#{colors[1]}\"; label=\"#{node.x}, #{node.y}\" ];\n"
       for c of node.connections
-        c = parseInt(c)
         if c > node.id
           output += "N#{node.id} -- N#{c};\n"
 
@@ -175,6 +181,11 @@ class KamiSolver
         colorCount++
     return colorCount
 
+  cloneNodes: (nodes) ->
+    newNodes = {}
+    for id of nodes
+      newNodes[id] = nodes[id].clone()
+    return newNodes
 
   solve: (remainingMoves, prevNodes) ->
     if remainingMoves < 0
@@ -188,7 +199,7 @@ class KamiSolver
       idCount = 0
       @dump(prevNodes, "steps/start.txt")
 
-    idList = (parseInt(id) for id of prevNodes)
+    idList = (id for id of prevNodes)
 
     colorCount = @countColors(idList, prevNodes)
     if colorCount-1 > remainingMoves
@@ -209,7 +220,7 @@ class KamiSolver
         console.log "#{percent}% complete. (#{idCount} / #{idList.length})"
       for color in @colors
         if (prevNodes[id].color != color) and prevNodes[id].adjacent(prevNodes, color)
-          nodes = clone(prevNodes)
+          nodes = @cloneNodes(prevNodes)
           @attempts++
           if (@attempts % 10000) == 0
             console.log "attempts: #{@attempts}"
@@ -232,8 +243,8 @@ class KamiSolver
     return null
 
 main = ->
-  solver = new KamiSolver('E9-7.txt')
-  moveList = solver.solve(7)
+  solver = new KamiSolver('C9-5.txt')
+  moveList = solver.solve(5)
   console.log "attempts: #{solver.attempts} -- " + JSON.stringify(moveList, null, 2)
   #solver.dump()
 
