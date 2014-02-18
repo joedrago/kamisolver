@@ -1,4 +1,6 @@
 fs = require 'fs'
+path = require 'path'
+{exec} = require 'child_process'
 
 # from CoffeeScript cookbook
 clone = (obj) ->
@@ -95,6 +97,10 @@ class KamiSolver
       indents += "  " for j in [0...i]
       @verboseIndents[i] = indents
 
+    @graphsDir = "graphs-" + path.basename(@filename, ".txt")
+    fs.mkdir @graphsDir, ->
+      # I don't care if it is there already
+
     @nodes = {}
     currentID = 1
 
@@ -151,8 +157,10 @@ class KamiSolver
         break if not consumedOne
     return
 
-  dump: (nodes, filename) ->
+  dump: (nodes, moveCount) ->
     # Pipe this output to: circo -Tpng -o out.png
+    circoFilename = "#{@graphsDir}/#{moveCount}.txt"
+    pngFilename = "#{@graphsDir}/#{moveCount}.png"
     nodes ?= @nodes
     output = "graph G {\n"
     output += "overlap=prism;\n"
@@ -160,7 +168,6 @@ class KamiSolver
     idList = (id for id of nodes)
     for id in idList
       node = nodes[id]
-      #console.log "N#{node.id} [label=\"N#{node.id} color #{node.color} (#{node.x}, #{node.y})\" ];"
       colors = colorToHex(node.color)
       output += "N#{node.id} [style=filled; fillcolor=\"#{colors[0]}\"; fontcolor=\"#{colors[1]}\"; label=\"#{node.x}, #{node.y}\" ];\n"
       for c of node.connections
@@ -169,10 +176,10 @@ class KamiSolver
 
     output += "}\n"
 
-    if filename?
-      fs.writeFileSync(filename, output)
-    else
-      console.log output
+    fs.writeFileSync(circoFilename, output)
+    exec "circo -Tpng -o #{pngFilename} #{circoFilename}", (error, stdout, stderr) ->
+      if error == null
+        fs.unlinkSync circoFilename
 
   countColors: (idList, nodes) ->
     colorCount = 0
@@ -199,13 +206,12 @@ class KamiSolver
       @totalMoves = remainingMoves
       @attempts = 0
       outerLoop = true
-      @dump(prevNodes, "steps/start.txt")
+      @dump(prevNodes, @totalMoves)
 
     idList = (id for id of prevNodes)
 
     colorCount = @countColors(idList, prevNodes)
     if colorCount-1 > remainingMoves
-      #console.log "#{colorCount} colors left, only #{remainingMoves} moves left, bailing out"
       return null
 
     if idList.length == 1
@@ -237,7 +243,7 @@ class KamiSolver
           @coalesceNodes(nodes)
           moveList = @solve(remainingMoves - 1, nodes)
           if moveList != null
-            @dump(nodes, "steps/#{remainingMoves}.txt")
+            @dump(nodes, remainingMoves-1)
             moveList.unshift {
               x: x
               y: y
@@ -245,7 +251,6 @@ class KamiSolver
             }
             return moveList
 
-    #loop
     return null
 
 main = ->
@@ -258,10 +263,8 @@ main = ->
     verboseDepth = args[2]
   else
     verboseDepth = 0
-  fs.mkdir "steps"
   solver = new KamiSolver(filename, verboseDepth)
   moveList = solver.solve(steps)
   console.log "attempts: #{solver.attempts} -- " + JSON.stringify(moveList, null, 2)
-  #solver.dump()
 
 main()
