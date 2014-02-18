@@ -2,29 +2,6 @@ fs = require 'fs'
 path = require 'path'
 {exec} = require 'child_process'
 
-# from CoffeeScript cookbook
-clone = (obj) ->
-  if not obj? or typeof obj isnt 'object'
-    return obj
-
-  if obj instanceof Date
-    return new Date(obj.getTime())
-
-  if obj instanceof RegExp
-    flags = ''
-    flags += 'g' if obj.global?
-    flags += 'i' if obj.ignoreCase?
-    flags += 'm' if obj.multiline?
-    flags += 'y' if obj.sticky?
-    return new RegExp(obj.source, flags)
-
-  newInstance = new obj.constructor()
-
-  for key of obj
-    newInstance[key] = clone obj[key]
-
-  return newInstance
-
 colorToLabel = (color) ->
   switch color
     when 'R' then 'Red'
@@ -158,7 +135,6 @@ class KamiSolver
     return
 
   dump: (nodes, moveCount) ->
-    # Pipe this output to: circo -Tpng -o out.png
     circoFilename = "#{@graphsDir}/#{moveCount}.txt"
     pngFilename = "#{@graphsDir}/#{moveCount}.png"
     nodes ?= @nodes
@@ -233,8 +209,6 @@ class KamiSolver
           nodes = @cloneNodes(prevNodes)
           @attempts++
           if (@attempts % 100000) == 0
-            # vdepth = if depth < @verboseDepth then depth else @verboseDepth
-            # console.log "#{@verboseIndents[vdepth]}  attempts: #{@attempts}"
             console.log "                                                              attempts: #{@attempts}"
 
           x = nodes[id].x
