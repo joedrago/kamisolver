@@ -249,8 +249,18 @@ class KamiSolver
     return null
 
 main = ->
-  solver = new KamiSolver('E9-7.txt', 2)
-  moveList = solver.solve(7)
+  args = process.argv.slice(2)
+  if (args.length < 2) or (args.length > 3)
+    quit "Syntax: kamisolver filename steps [verboseDepth]"
+  filename = args[0]
+  steps = args[1]
+  if args.length > 2
+    verboseDepth = args[2]
+  else
+    verboseDepth = 0
+  fs.mkdir "steps"
+  solver = new KamiSolver(filename, verboseDepth)
+  moveList = solver.solve(steps)
   console.log "attempts: #{solver.attempts} -- " + JSON.stringify(moveList, null, 2)
   #solver.dump()
 
