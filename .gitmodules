@@ -1,0 +1,3 @@
+[submodule "c/dyn"]
+	path = c/dyn
+	url = https://github.com/joedrago/dyn.git
