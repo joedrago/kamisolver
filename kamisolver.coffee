@@ -1,5 +1,11 @@
 fs = require 'fs'
 
+# from some random stackoverflow
+toFixed = (value, precision) ->
+  power = Math.pow(10, precision || 0)
+  return String(Math.round(value * power) / power)
+
+# from CoffeeScript cookbook
 clone = (obj) ->
   if not obj? or typeof obj isnt 'object'
     return obj
@@ -22,16 +28,17 @@ clone = (obj) ->
 
   return newInstance
 
-# colorToLabel = (color) ->
-#   switch color
-#     when 'R' then 'Red'
-#     when 'G' then 'Green'
-#     when 'B' then 'Blue'
-#     when 'K' then 'Black'
-#     when 'O' then 'Orange'
-#     when 'W' then 'White'
-#     when 'N' then 'Brown'
-#     else "Unknown"
+colorToLabel = (color) ->
+  switch color
+    when 'R' then 'Red'
+    when 'G' then 'Green'
+    when 'B' then 'Blue'
+    when 'K' then 'Black'
+    when 'O' then 'Orange'
+    when 'W' then 'White'
+    when 'N' then 'Brown'
+    when 'Y' then 'Yellow'
+    else "Unknown"
 
 colorToHex = (color) ->
   switch color
@@ -42,6 +49,7 @@ colorToHex = (color) ->
     when 'O' then ['#ED6C3A', '#000000']
     when 'W' then ['#ffffff', '#000000']
     when 'N' then ['#9B7065', '#ffffff']
+    when 'Y' then ['#FFFF00', '#000000']
     else "Unknown"
 
 quit = (reason) ->
@@ -62,16 +70,24 @@ class Node
       delete @connections[node.id]
       node.disconnect(this)
 
-  consume: (solver, node) ->
-    conns = (c for c of node.connections)
+  consume: (nodes, node) ->
+    conns = (parseInt(c) for c of node.connections)
     for c in conns
-      node.disconnect(solver.nodes[c])
-      @connect(solver.nodes[c])
+      node.disconnect(nodes[c])
+      if @id != c
+        @connect(nodes[c])
+
+  adjacent: (nodes, color) ->
+    conns = (parseInt(c) for c of @connections)
+    for c in conns
+      if nodes[c].color == color
+        return true
+    return false
 
 class KamiSolver
   constructor: (@filename) ->
     @nodes = {}
-    currentID = 0
+    currentID = 1
 
     # Read in lines, do some sanity checking
     lines = (line for line in fs.readFileSync(@filename, { encoding: 'utf-8' }).split(/\r|\n/) when line.length > 0)
@@ -80,10 +96,11 @@ class KamiSolver
     for line,i in lines
       if line.length != 16
         quit "Line ##{i+1} has #{line.length} chars, was expecting 16"
-      if not /^[RGBKOWN]+$/.test(line)
+      if not /^[RGBKOWNY]+$/.test(line)
         quit "Line ##{i+1} has invalid letters"
 
     # Turn the raw data into a crappy graph
+    colorsSeen = {}
     lineNodes = null
     for line,lineNo in lines
       prevLineNodes = lineNodes
@@ -91,6 +108,7 @@ class KamiSolver
       prevNode = null
       for i in [0..15]
         color = line[i]
+        colorsSeen[color] = 1
         node = new Node(currentID, i, lineNo, color)
         currentID++
         @nodes[node.id] = node
@@ -101,51 +119,122 @@ class KamiSolver
           prevLineNodes[i].connect(node)
         prevNode = node
 
-    # ... then make the graph not crappy
-    @coalesceNodes()
+    @colors = (color for color of colorsSeen)
 
-  coalesceNodes: ->
-    idList = (id for id of @nodes)
+    # ... then make the graph not crappy
+    @coalesceNodes(@nodes)
+
+  coalesceNodes: (nodes) ->
+    idList = (parseInt(id) for id of nodes)
     for id in idList
-      node = @nodes[id]
+      node = nodes[id]
       continue if not node?
 
       loop
-        conns = (c for c of node.connections)
+        conns = (parseInt(c) for c of node.connections)
         consumedOne = false
         for connID in conns
-          if (node.id < connID) and (node.color == @nodes[connID].color)
-            node.consume this, @nodes[connID]
-            delete @nodes[connID]
+          if (node.id < connID) and (node.color == nodes[connID].color)
+            node.consume nodes, nodes[connID]
+            delete nodes[connID]
             consumedOne = true
 
         break if not consumedOne
+    return
 
-  dump: (nodes) ->
+  dump: (nodes, filename) ->
     # Pipe this output to: circo -Tpng -o out.png
     nodes ?= @nodes
-    console.log "graph G {"
-    console.log "overlap=prism;"
+    output = "graph G {\n"
+    output += "overlap=prism;\n"
 
-    idList = (id for id of @nodes)
+    idList = (parseInt(id) for id of nodes)
     for id in idList
-      node = @nodes[id]
+      node = nodes[id]
       #console.log "N#{node.id} [label=\"N#{node.id} color #{node.color} (#{node.x}, #{node.y})\" ];"
       colors = colorToHex(node.color)
-      console.log "N#{node.id} [style=filled; fillcolor=\"#{colors[0]}\"; fontcolor=\"#{colors[1]}\"; label=\"#{node.x}, #{node.y}\" ];"
+      output += "N#{node.id} [style=filled; fillcolor=\"#{colors[0]}\"; fontcolor=\"#{colors[1]}\"; label=\"#{node.x}, #{node.y}\" ];\n"
       for c of node.connections
+        c = parseInt(c)
         if c > node.id
-          console.log "N#{node.id} -- N#{c};"
+          output += "N#{node.id} -- N#{c};\n"
 
-    console.log "}"
+    output += "}\n"
 
-  solve: (remainingMoves, nodes) ->
-    nodes ?= clone(nodes)
+    if filename?
+      fs.writeFileSync(filename, output)
+    else
+      console.log output
 
-    console.log "solving #{nodes}"
+  countColors: (idList, nodes) ->
+    colorCount = 0
+    sawColor = {}
+    for id in idList
+      if not sawColor[nodes[id].color]
+        sawColor[nodes[id].color] = 1
+        colorCount++
+    return colorCount
+
+
+  solve: (remainingMoves, prevNodes) ->
+    if remainingMoves < 0
+      return null
+
+    outerLoop = false
+    if not prevNodes?
+      prevNodes = @nodes
+      @attempts = 0
+      outerLoop = true
+      idCount = 0
+      @dump(prevNodes, "steps/start.txt")
+
+    idList = (parseInt(id) for id of prevNodes)
+
+    colorCount = @countColors(idList, prevNodes)
+    if colorCount-1 > remainingMoves
+      #console.log "#{colorCount} colors left, only #{remainingMoves} moves left, bailing out"
+      return null
+
+    if idList.length == 1
+      console.log "SOLVED"
+      return []
+
+    if outerLoop
+      console.log "Node count: #{idList.length}, color count: #{@colors.length}"
+
+    for id in idList
+      if outerLoop
+        idCount++
+        percent = toFixed(100 * idCount / idList.length, 2)
+        console.log "#{percent}% complete. (#{idCount} / #{idList.length})"
+      for color in @colors
+        if (prevNodes[id].color != color) and prevNodes[id].adjacent(prevNodes, color)
+          nodes = clone(prevNodes)
+          @attempts++
+          if (@attempts % 10000) == 0
+            console.log "attempts: #{@attempts}"
+
+          x = nodes[id].x
+          y = nodes[id].y
+          nodes[id].color = color
+          @coalesceNodes(nodes)
+          moveList = @solve(remainingMoves - 1, nodes)
+          if moveList != null
+            @dump(nodes, "steps/#{remainingMoves}.txt")
+            moveList.unshift {
+              x: x
+              y: y
+              color: colorToLabel(color)
+            }
+            return moveList
+
+    #loop
+    return null
 
 main = ->
-  solver = new KamiSolver('A9.txt')
-  solver.solve(4)
+  solver = new KamiSolver('E9-7.txt')
+  moveList = solver.solve(7)
+  console.log "attempts: #{solver.attempts} -- " + JSON.stringify(moveList, null, 2)
+  #solver.dump()
 
 main()
