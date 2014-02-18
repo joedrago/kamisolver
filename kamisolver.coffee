@@ -1,10 +1,5 @@
 fs = require 'fs'
 
-# from some random stackoverflow
-toFixed = (value, precision) ->
-  power = Math.pow(10, precision || 0)
-  return String(Math.round(value * power) / power)
-
 # from CoffeeScript cookbook
 clone = (obj) ->
   if not obj? or typeof obj isnt 'object'
@@ -92,7 +87,14 @@ class Node
     return false
 
 class KamiSolver
-  constructor: (@filename) ->
+  constructor: (@filename, @verboseDepth) ->
+    @verboseDepth ?= 1
+    @verboseIndents = []
+    for i in [0..@verboseDepth+1]
+      indents = ""
+      indents += "  " for j in [0...i]
+      @verboseIndents[i] = indents
+
     @nodes = {}
     currentID = 1
 
@@ -194,9 +196,9 @@ class KamiSolver
     outerLoop = false
     if not prevNodes?
       prevNodes = @nodes
+      @totalMoves = remainingMoves
       @attempts = 0
       outerLoop = true
-      idCount = 0
       @dump(prevNodes, "steps/start.txt")
 
     idList = (id for id of prevNodes)
@@ -213,17 +215,21 @@ class KamiSolver
     if outerLoop
       console.log "Node count: #{idList.length}, color count: #{@colors.length}"
 
+    depth = @totalMoves - remainingMoves
+    idCount = 0
     for id in idList
-      if outerLoop
+      if depth <= @verboseDepth
         idCount++
-        percent = toFixed(100 * idCount / idList.length, 2)
-        console.log "#{percent}% complete. (#{idCount} / #{idList.length})"
+        percent = Math.floor(100 * idCount / idList.length)
+        console.log "#{@verboseIndents[depth]}#{depth}: #{percent}% complete. (#{idCount} / #{idList.length})"
       for color in @colors
         if (prevNodes[id].color != color) and prevNodes[id].adjacent(prevNodes, color)
           nodes = @cloneNodes(prevNodes)
           @attempts++
-          if (@attempts % 10000) == 0
-            console.log "attempts: #{@attempts}"
+          if (@attempts % 100000) == 0
+            # vdepth = if depth < @verboseDepth then depth else @verboseDepth
+            # console.log "#{@verboseIndents[vdepth]}  attempts: #{@attempts}"
+            console.log "                                                              attempts: #{@attempts}"
 
           x = nodes[id].x
           y = nodes[id].y
@@ -243,8 +249,8 @@ class KamiSolver
     return null
 
 main = ->
-  solver = new KamiSolver('C9-5.txt')
-  moveList = solver.solve(5)
+  solver = new KamiSolver('E9-7.txt', 2)
+  moveList = solver.solve(7)
   console.log "attempts: #{solver.attempts} -- " + JSON.stringify(moveList, null, 2)
   #solver.dump()
 
