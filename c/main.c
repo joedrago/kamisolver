@@ -4,8 +4,30 @@
 
 #include "dyn.h"
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 // -----------------------------------------------------------------------
 // Helpers
+
+unsigned int elapsedMS(unsigned int *lastMS)
+{
+#ifdef WIN32
+    unsigned int now = GetTickCount();
+#else
+#error please define now in milliseconds here
+#endif
+    unsigned int elapsed;
+    if(*lastMS == 0)
+    {
+        *lastMS = now;
+        return 0;
+    }
+    elapsed = now - *lastMS;
+    *lastMS = now;
+    return elapsed;
+}
 
 const char *colorToLabel(char color)
 {
@@ -69,13 +91,16 @@ void colorToHex(char color, const char **fillColor, const char **textColor)
 // -----------------------------------------------------------------------
 // Node
 
+#define MAX_CONNECTIONS 160
+
 typedef struct Node
 {
     int id;
     char x;
     char y;
     char color;
-    int *connections;
+    int connections[MAX_CONNECTIONS];
+    int connectionCount;
 } Node;
 
 Node *nodeCreate(int id, char x, char y, char color)
@@ -85,13 +110,12 @@ Node *nodeCreate(int id, char x, char y, char color)
     node->x = x;
     node->y = y;
     node->color = color;
-    daCreate(&node->connections, sizeof(int));
+    node->connectionCount = 0;
     return node;
 }
 
 void nodeDestroy(Node *node)
 {
-    daDestroy(&node->connections, NULL);
     free(node);
 }
 
@@ -145,15 +169,15 @@ void nodeListConnect(NodeList *nodeList, Node *node, int id)
         return;
 
     // Don't bother if we're already connected
-    for(i = 0; i < daSize(&node->connections); ++i)
+    for(i = 0; i < node->connectionCount; ++i)
     {
         if(node->connections[i] == id)
             return;
     }
 
     // Add connections
-    daPushU32(&node->connections, otherNode->id);
-    daPushU32(&otherNode->connections, node->id);
+    node->connections[node->connectionCount++] = otherNode->id;
+    otherNode->connections[otherNode->connectionCount++] = node->id;
 }
 
 void nodeListDisconnect(NodeList *nodeList, Node *node, int id)
@@ -168,7 +192,7 @@ void nodeListDisconnect(NodeList *nodeList, Node *node, int id)
         return;
 
     // Don't bother if we're already disconnected
-    for(i = 0; i < daSize(&node->connections); ++i)
+    for(i = 0; i < node->connectionCount; ++i)
     {
         if(node->connections[i] == id)
         {
@@ -177,7 +201,7 @@ void nodeListDisconnect(NodeList *nodeList, Node *node, int id)
         }
     }
 
-    for(i = 0; i < daSize(&otherNode->connections); ++i)
+    for(i = 0; i < otherNode->connectionCount; ++i)
     {
         if(otherNode->connections[i] == node->id)
         {
@@ -188,9 +212,15 @@ void nodeListDisconnect(NodeList *nodeList, Node *node, int id)
 
     // Remove connections
     if(foundIndex != -1)
-        daErase(&node->connections, foundIndex);
+    {
+        --node->connectionCount;
+        memmove(&node->connections[foundIndex], &node->connections[foundIndex+1], sizeof(int) * (node->connectionCount - foundIndex));
+    }
     if(otherFoundIndex != -1)
-        daErase(&otherNode->connections, otherFoundIndex);
+    {
+        --otherNode->connectionCount;
+        memmove(&otherNode->connections[otherFoundIndex], &otherNode->connections[otherFoundIndex+1], sizeof(int) * (otherNode->connectionCount - otherFoundIndex));
+    }
 }
 
 NodeList *nodeListClone(NodeList *nodeList)
@@ -201,9 +231,8 @@ NodeList *nodeListClone(NodeList *nodeList)
     {
         Node *node = nodeList->nodes[nodeIndex];
         Node *clonedNode = nodeCreate(node->id, node->x, node->y, node->color);
-        int connCount = daSize(&node->connections);
-        daSetSize(&clonedNode->connections, connCount, NULL);
-        memcpy(clonedNode->connections, node->connections, connCount * sizeof(int));
+        clonedNode->connectionCount = node->connectionCount;
+        memcpy(clonedNode->connections, node->connections, clonedNode->connectionCount * sizeof(int));
         nodeListAdd(clonedList, clonedNode);
     }
     return clonedList;
@@ -213,11 +242,11 @@ void nodeListConsume(NodeList *nodeList, Node *node, Node *eatme)
 {
     int connIndex;
     int tempConnections[160];
-    int connectionSize = daSize(&eatme->connections);
-    if(connectionSize == 0)
+    int connectionCount = eatme->connectionCount;
+    if(connectionCount == 0)
         return;
-    memcpy(tempConnections, eatme->connections, connectionSize * sizeof(int));
-    for(connIndex = 0; connIndex < connectionSize; ++connIndex)
+    memcpy(tempConnections, eatme->connections, connectionCount * sizeof(int));
+    for(connIndex = 0; connIndex < connectionCount; ++connIndex)
     {
         int connID = tempConnections[connIndex];
         nodeListDisconnect(nodeList, eatme, connID);
@@ -241,13 +270,13 @@ void nodeListCoalesce(NodeList *nodeList)
             continue;
         while(keepEating)
         {
-            int connectionSize = daSize(&node->connections);
-            if(connectionSize == 0)
+            int connectionCount = node->connectionCount;
+            if(connectionCount == 0)
                 break;
-            memcpy(tempConnections, node->connections, connectionSize * sizeof(int));
+            memcpy(tempConnections, node->connections, connectionCount * sizeof(int));
 
             keepEating = 0;
-            for(connIndex = 0; connIndex < connectionSize; ++connIndex)
+            for(connIndex = 0; connIndex < connectionCount; ++connIndex)
             {
                 int connID = tempConnections[connIndex];
                 int globalConnIndex;
@@ -289,7 +318,7 @@ int nodeListCountColors(NodeList *nodeList)
 int nodeListAdjacent(NodeList *nodeList, Node *node, char color)
 {
     int connIndex;
-    for(connIndex = 0; connIndex < daSize(&node->connections); ++connIndex)
+    for(connIndex = 0; connIndex < node->connectionCount; ++connIndex)
     {
         Node *connNode = nodeListGet(nodeList, node->connections[connIndex], NULL);
         if(connNode && (connNode->color == color))
@@ -322,7 +351,7 @@ void nodeListDump(NodeList *nodeList, const char *filename)
                 node->x,
                 node->y);
 
-            for(connIndex = 0; connIndex < daSize(&node->connections); ++connIndex)
+            for(connIndex = 0; connIndex < node->connectionCount; ++connIndex)
             {
                 int connID = node->connections[connIndex];
                 if(connID > node->id)
@@ -373,6 +402,7 @@ typedef struct Solver
     char *colors;
     int totalMoves;
     int attempts;
+    unsigned int timer;
 } Solver;
 
 Solver *solverDestroy(Solver *solver);
@@ -488,7 +518,7 @@ int solverRecursiveSolve(Solver *solver, NodeList *nodeList, int remainingMoves)
 
             ++solver->attempts;
             if((solver->attempts % 100000) == 0)
-                printf("                                                              attempts: %d\n", solver->attempts);
+                printf("                                                              attempts: %d (%ums)\n", solver->attempts, elapsedMS(&solver->timer));
 
             clonedList = nodeListClone(nodeList);
             clonedNode = clonedList->nodes[nodeIndex];
@@ -517,6 +547,7 @@ void solverSolve(Solver *solver, int steps)
 
     solver->attempts = 0;
     solver->totalMoves = steps;
+    elapsedMS(&solver->timer);
     if(solverRecursiveSolve(solver, solver->nodeList, steps))
     {
         int moveIndex;

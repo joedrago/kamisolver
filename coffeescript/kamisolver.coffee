@@ -172,6 +172,15 @@ class KamiSolver
       newNodes[id] = nodes[id].clone()
     return newNodes
 
+  elapsed: ->
+    now = new Date().getTime()
+    if not @timer?
+      @timer = now
+      return 0
+    elapsed = now - @timer
+    @timer = now
+    return elapsed
+
   solve: (remainingMoves, prevNodes) ->
     if remainingMoves < 0
       return null
@@ -183,6 +192,7 @@ class KamiSolver
       @attempts = 0
       outerLoop = true
       @dump(prevNodes, @totalMoves)
+      @elapsed()
 
     idList = (id for id of prevNodes)
 
@@ -209,7 +219,7 @@ class KamiSolver
           nodes = @cloneNodes(prevNodes)
           @attempts++
           if (@attempts % 100000) == 0
-            console.log "                                                              attempts: #{@attempts}"
+            console.log "                                                              attempts: #{@attempts} (#{@elapsed()}ms)"
 
           x = nodes[id].x
           y = nodes[id].y
