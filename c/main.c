@@ -119,6 +119,11 @@ void nodeDestroy(Node *node)
     free(node);
 }
 
+int nodeCompare(const Node **node1, const Node **node2)
+{
+    return (*node2)->connectionCount - (*node1)->connectionCount;
+}
+
 // -----------------------------------------------------------------------
 // NodeList
 
@@ -137,6 +142,11 @@ void nodeListDestroy(NodeList *nodeList)
 {
     daDestroy(&nodeList->nodes, nodeDestroy);
     free(nodeList);
+}
+
+void nodeListSort(NodeList *nodeList)
+{
+    qsort(nodeList->nodes, daSize(&nodeList->nodes), sizeof(Node*), nodeCompare);
 }
 
 void nodeListAdd(NodeList *nodeList, Node *node)
@@ -500,6 +510,7 @@ int solverRecursiveSolve(Solver *solver, NodeList *nodeList, int remainingMoves)
     if((colorCount - 1) > remainingMoves)
         return 0;
 
+    nodeListSort(nodeList);
     for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
     {
         Node *node = nodeList->nodes[nodeIndex];
@@ -556,6 +567,7 @@ void solverSolve(Solver *solver, int steps)
             Move *move = solver->moves[moveIndex];
             printf("MOVE %d: change (%d,%d) to %s\n", moveIndex+1, move->x, move->y, colorToLabel(move->color));
         }
+        printf("Solved in %d attempts.\n", solver->attempts);
     }
 }
 
