@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <crtdbg.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -492,7 +491,6 @@ int solverRecursiveSolve(Solver *solver, NodeList *nodeList, int remainingMoves)
 
             clonedList = nodeListClone(nodeList);
             clonedNode = clonedList->nodes[nodeIndex];
-            //clonedNode = nodeListGet(clonedList, node->id, NULL);
             x = clonedNode->x;
             y = clonedNode->y;
             clonedNode->color = color;
@@ -533,14 +531,21 @@ void solverSolve(Solver *solver, int steps)
 
 int main(int argc, char **argv)
 {
-    if(argc != 3)
+    if((argc < 3) || (argc > 4))
+    {
+        printf("Syntax: kamisolver filename steps [verboseDepth]");
         return 1;
-
-    _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+    }
+    else
     {
         const char *filename = argv[1];
         int steps = atoi(argv[2]);
-        Solver *solver = solverCreate(filename, 0);
+        int verboseDepth = 0;
+        if(argc > 3)
+        {
+            verboseDepth = atoi(argv[3]);
+        }
+        Solver *solver = solverCreate(filename, verboseDepth);
         if(solver)
         {
             solverSolve(solver, steps);
