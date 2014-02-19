@@ -1,6 +1,4 @@
-#define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
-#include <crtdbg.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -103,7 +101,6 @@ void nodeListDestroy(NodeList *nodeList)
 
 void nodeListAdd(NodeList *nodeList, Node *node)
 {
-    printf("adding node %d to nodelist\n", node->id);
     daPush(&nodeList->nodes, node);
 }
 
@@ -175,9 +172,13 @@ void nodeListDisconnect(NodeList *nodeList, Node *node, int id)
 
     // Remove connections
     if(foundIndex != -1)
+    {
         daErase(&node->connections, foundIndex);
+    }
     if(otherFoundIndex != -1)
+    {
         daErase(&otherNode->connections, otherFoundIndex);
+    }
 }
 
 void nodeListConsume(NodeList *nodeList, Node *node, Node *eatme)
@@ -249,7 +250,7 @@ void nodeListDump(NodeList *nodeList, const char *filename)
         const char *textColor;
 
         fprintf(f, "graph G {\n");
-        fprintf(f, "overlap=prism;\n");
+        fprintf(f, "overlap=false;\n");
 
         for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
         {
@@ -307,7 +308,7 @@ Solver *solverCreate(const char *filename, int verboseDepth)
         FILE *f = fopen(solver->filename, "r");
         char lineBuffer[128];
         char colorSeen[26] = {0};
-        int lineNodes[16] = {0};
+        int lineNodes[16];
         int prevNode = 0;
         if(!f)
             return solverDestroy(solver);
@@ -318,6 +319,7 @@ Solver *solverCreate(const char *filename, int verboseDepth)
             if(len < 16)
                 continue;
 
+            prevNode = 0;
             for(i = 0; i < 16; ++i)
             {
                 char color = lineBuffer[i];
@@ -375,9 +377,14 @@ void solverSolve(Solver *solver, int steps, Node **nodes)
 
 int main(int argc, char **argv)
 {
-    _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+    if(argc != 3)
+        return 1;
+
+    //_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
     {
-        Solver *solver = solverCreate("B6-4.txt", 0);
+        const char *filename = argv[1];
+        int steps = atoi(argv[2]);
+        Solver *solver = solverCreate(filename, steps);
         if(solver)
         {
             solverSolve(solver, 4, NULL);
