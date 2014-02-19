@@ -272,12 +272,13 @@ int nodeListCountColors(NodeList *nodeList)
     char colorSeen[26] = {0};
     int nodeIndex;
     int colorCount = 0;
+    int i;
     for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
     {
         Node *node = nodeList->nodes[nodeIndex];
         colorSeen[node->color - 'A'] = 1;
     }
-    for(int i = 0; i < 26; ++i)
+    for(i = 0; i < 26; ++i)
     {
         if(colorSeen[i])
             ++colorCount;
@@ -541,11 +542,12 @@ int main(int argc, char **argv)
         const char *filename = argv[1];
         int steps = atoi(argv[2]);
         int verboseDepth = 0;
+        Solver *solver;
         if(argc > 3)
         {
             verboseDepth = atoi(argv[3]);
         }
-        Solver *solver = solverCreate(filename, verboseDepth);
+        solver = solverCreate(filename, verboseDepth);
         if(solver)
         {
             solverSolve(solver, steps);
