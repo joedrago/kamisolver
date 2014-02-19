@@ -169,6 +169,26 @@ Node *nodeListGet(NodeList *nodeList, int id, int *retIndex)
     return NULL;
 }
 
+int nodeListMoveColorToIndex(NodeList *nodeList, char color, int index)
+{
+    int i;
+    for(i = 0; i < daSize(&nodeList->nodes); ++i)
+    {
+        if(nodeList->nodes[i] && nodeList->nodes[i]->color == color)
+        {
+            if(i != index)
+            {
+                Node *temp = nodeList->nodes[i];
+                nodeList->nodes[i] = nodeList->nodes[index];
+                nodeList->nodes[index] = temp;
+            }
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 void nodeListConnect(NodeList *nodeList, Node *node, int id)
 {
     Node *otherNode = nodeListGet(nodeList, id, NULL);
@@ -306,16 +326,16 @@ void nodeListCoalesce(NodeList *nodeList)
     daSquash(&nodeList->nodes);
 }
 
-int nodeListCountColors(NodeList *nodeList)
+int nodeListCountColors(NodeList *nodeList, char colorSeen[26])
 {
-    char colorSeen[26] = {0};
     int nodeIndex;
     int colorCount = 0;
     int i;
+    memset(colorSeen, 0, 26 * sizeof(char));
     for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
     {
         Node *node = nodeList->nodes[nodeIndex];
-        colorSeen[node->color - 'A'] = 1;
+        colorSeen[node->color - 'A']++;
     }
     for(i = 0; i < 26; ++i)
     {
@@ -413,6 +433,7 @@ typedef struct Solver
     int totalMoves;
     int attempts;
     unsigned int timer;
+    unsigned int solveTimer;
 } Solver;
 
 Solver *solverDestroy(Solver *solver);
@@ -497,6 +518,8 @@ int solverRecursiveSolve(Solver *solver, NodeList *nodeList, int remainingMoves)
     int colorIndex;
     int x, y;
     int solved;
+    int nodesToAttempt;
+    char colorSeen[26];
     NodeList *clonedList;
     Node *clonedNode;
 
@@ -506,12 +529,34 @@ int solverRecursiveSolve(Solver *solver, NodeList *nodeList, int remainingMoves)
     if(remainingMoves < 0)
         return 0;
 
-    colorCount = nodeListCountColors(nodeList);
+    colorCount = nodeListCountColors(nodeList, colorSeen);
     if((colorCount - 1) > remainingMoves)
         return 0;
 
-    nodeListSort(nodeList);
-    for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
+    if((colorCount - 1) == remainingMoves)
+    {
+        // WIGGLE ROOM OPTIMIZATION:
+        // If these values match, we must be eliminating a color at each remaining step.
+        // We need to enumerate all colors that have a single node representing them and try those,
+        // and if they don't work, just bail out and try something else.
+
+        int colorIndex;
+        nodesToAttempt = 0;
+        for(colorIndex = 0; colorIndex < 26; ++colorIndex)
+        {
+            if(colorSeen[colorIndex] == 1)
+            {
+                nodeListMoveColorToIndex(nodeList, 'A' + (char)colorIndex, nodesToAttempt++);
+            }
+        }
+    }
+    else
+    {
+        nodesToAttempt = daSize(&nodeList->nodes);
+        nodeListSort(nodeList);
+    }
+
+    for(nodeIndex = 0; nodeIndex < nodesToAttempt; ++nodeIndex)
     {
         Node *node = nodeList->nodes[nodeIndex];
         if(depth <= solver->verboseDepth)
@@ -559,6 +604,7 @@ void solverSolve(Solver *solver, int steps)
     solver->attempts = 0;
     solver->totalMoves = steps;
     elapsedMS(&solver->timer);
+    solver->solveTimer = solver->timer;
     if(solverRecursiveSolve(solver, solver->nodeList, steps))
     {
         int moveIndex;
@@ -567,7 +613,7 @@ void solverSolve(Solver *solver, int steps)
             Move *move = solver->moves[moveIndex];
             printf("MOVE %d: change (%d,%d) to %s\n", moveIndex+1, move->x, move->y, colorToLabel(move->color));
         }
-        printf("Solved in %d attempts.\n", solver->attempts);
+        printf("Solved in %d attempts. (%ums)\n", solver->attempts, elapsedMS(&solver->solveTimer));
     }
 }
 
