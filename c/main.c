@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <crtdbg.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -6,6 +7,22 @@
 
 // -----------------------------------------------------------------------
 // Helpers
+
+const char *colorToLabel(char color)
+{
+    switch(color)
+    {
+        case 'R': return "Red";
+        case 'G': return "Green";
+        case 'B': return "Blue";
+        case 'K': return "Black";
+        case 'O': return "Orange";
+        case 'W': return "White";
+        case 'N': return "Brown";
+        case 'Y': return "Yellow";
+    };
+    return "Unknown";
+}
 
 void colorToHex(char color, const char **fillColor, const char **textColor)
 {
@@ -172,13 +189,25 @@ void nodeListDisconnect(NodeList *nodeList, Node *node, int id)
 
     // Remove connections
     if(foundIndex != -1)
-    {
         daErase(&node->connections, foundIndex);
-    }
     if(otherFoundIndex != -1)
-    {
         daErase(&otherNode->connections, otherFoundIndex);
+}
+
+NodeList *nodeListClone(NodeList *nodeList)
+{
+    NodeList *clonedList = nodeListCreate();
+    int nodeIndex;
+    for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
+    {
+        Node *node = nodeList->nodes[nodeIndex];
+        Node *clonedNode = nodeCreate(node->id, node->x, node->y, node->color);
+        int connCount = daSize(&node->connections);
+        daSetSize(&clonedNode->connections, connCount, NULL);
+        memcpy(clonedNode->connections, node->connections, connCount * sizeof(int));
+        nodeListAdd(clonedList, clonedNode);
     }
+    return clonedList;
 }
 
 void nodeListConsume(NodeList *nodeList, Node *node, Node *eatme)
@@ -239,6 +268,36 @@ void nodeListCoalesce(NodeList *nodeList)
     daSquash(&nodeList->nodes);
 }
 
+int nodeListCountColors(NodeList *nodeList)
+{
+    char colorSeen[26] = {0};
+    int nodeIndex;
+    int colorCount = 0;
+    for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
+    {
+        Node *node = nodeList->nodes[nodeIndex];
+        colorSeen[node->color - 'A'] = 1;
+    }
+    for(int i = 0; i < 26; ++i)
+    {
+        if(colorSeen[i])
+            ++colorCount;
+    }
+    return colorCount;
+}
+
+int nodeListAdjacent(NodeList *nodeList, Node *node, char color)
+{
+    int connIndex;
+    for(connIndex = 0; connIndex < daSize(&node->connections); ++connIndex)
+    {
+        Node *connNode = nodeListGet(nodeList, node->connections[connIndex], NULL);
+        if(connNode && (connNode->color == color))
+            return 1;
+    }
+    return 0;
+}
+
 void nodeListDump(NodeList *nodeList, const char *filename)
 {
     FILE *f = fopen(filename, "w");
@@ -281,12 +340,39 @@ void nodeListDump(NodeList *nodeList, const char *filename)
 // -----------------------------------------------------------------------
 // Solver
 
+typedef struct Move
+{
+    int x;
+    int y;
+    char color;
+} Move;
+
+Move *moveCreate(int x, int y, char color)
+{
+    Move *move = (Move *)calloc(1, sizeof(Move));
+    move->x = x;
+    move->y = y;
+    move->color = color;
+    return move;
+}
+
+void moveDestroy(Move *move)
+{
+    free(move);
+}
+
+// -----------------------------------------------------------------------
+// Solver
+
 typedef struct Solver
 {
     char *filename;
     int verboseDepth;
     NodeList *nodeList;
+    Move **moves;
     char *colors;
+    int totalMoves;
+    int attempts;
 } Solver;
 
 Solver *solverDestroy(Solver *solver);
@@ -308,7 +394,7 @@ Solver *solverCreate(const char *filename, int verboseDepth)
         FILE *f = fopen(solver->filename, "r");
         char lineBuffer[128];
         char colorSeen[26] = {0};
-        int lineNodes[16];
+        int lineNodes[16] = {0};
         int prevNode = 0;
         if(!f)
             return solverDestroy(solver);
@@ -358,19 +444,89 @@ Solver *solverDestroy(Solver *solver)
     dsDestroy(&solver->filename);
     nodeListDestroy(solver->nodeList);
     daDestroy(&solver->colors, NULL);
+    daDestroy(&solver->moves, moveDestroy);
     free(solver);
     return NULL;
 }
 
-void solverSolve(Solver *solver, int steps, Node **nodes)
+int solverRecursiveSolve(Solver *solver, NodeList *nodeList, int remainingMoves)
 {
-    int i;
-    for(i = 0; i < daSize(&solver->colors); ++i)
+    int colorCount;
+    int depth = solver->totalMoves - remainingMoves;
+    int nodeIndex;
+    int colorIndex;
+    int x, y;
+    int solved;
+    NodeList *clonedList;
+    Node *clonedNode;
+
+    if(daSize(&nodeList->nodes) == 1)
+        return 1;
+
+    if(remainingMoves < 0)
+        return 0;
+
+    colorCount = nodeListCountColors(nodeList);
+    if((colorCount - 1) > remainingMoves)
+        return 0;
+
+    for(nodeIndex = 0; nodeIndex < daSize(&nodeList->nodes); ++nodeIndex)
     {
-        printf("Color: %c\n", solver->colors[i]);
+        Node *node = nodeList->nodes[nodeIndex];
+        if(depth <= solver->verboseDepth)
+        {
+            int i;
+            for(i = 0; i < depth; ++i)
+                printf("  ");
+            printf("%d: (%d / %d)\n", depth, nodeIndex+1, (int)daSize(&nodeList->nodes));
+        }
+        for(colorIndex = 0; colorIndex < daSize(&solver->colors); ++colorIndex)
+        {
+            char color = solver->colors[colorIndex];
+            if((node->color == color) || (!nodeListAdjacent(nodeList, node, color)))
+                continue;
+
+            ++solver->attempts;
+            if((solver->attempts % 100000) == 0)
+                printf("                                                              attempts: %d\n", solver->attempts);
+
+            clonedList = nodeListClone(nodeList);
+            clonedNode = clonedList->nodes[nodeIndex];
+            //clonedNode = nodeListGet(clonedList, node->id, NULL);
+            x = clonedNode->x;
+            y = clonedNode->y;
+            clonedNode->color = color;
+            nodeListCoalesce(clonedList);
+            solved = solverRecursiveSolve(solver, clonedList, remainingMoves - 1);
+            nodeListDestroy(clonedList);
+
+            if(solved)
+            {
+                Move *move = moveCreate(x, y, color);
+                daUnshift(&solver->moves, move);
+                return 1;
+            }
+        }
     }
+    return 0;
+}
+
+void solverSolve(Solver *solver, int steps)
+{
     printf("Node count: %d\n", (int)daSize(&solver->nodeList->nodes));
-    nodeListDump(solver->nodeList, "out.txt");
+    //nodeListDump(solver->nodeList, "out.txt");
+
+    solver->attempts = 0;
+    solver->totalMoves = steps;
+    if(solverRecursiveSolve(solver, solver->nodeList, steps))
+    {
+        int moveIndex;
+        for(moveIndex = 0; moveIndex < daSize(&solver->moves); ++moveIndex)
+        {
+            Move *move = solver->moves[moveIndex];
+            printf("MOVE %d: change (%d,%d) to %s\n", moveIndex+1, move->x, move->y, colorToLabel(move->color));
+        }
+    }
 }
 
 // -----------------------------------------------------------------------
@@ -380,14 +536,14 @@ int main(int argc, char **argv)
     if(argc != 3)
         return 1;
 
-    //_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+    _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
     {
         const char *filename = argv[1];
         int steps = atoi(argv[2]);
-        Solver *solver = solverCreate(filename, steps);
+        Solver *solver = solverCreate(filename, 0);
         if(solver)
         {
-            solverSolve(solver, 4, NULL);
+            solverSolve(solver, steps);
             solverDestroy(solver);
         }
     }
