@@ -41,6 +41,11 @@ const char *colorToLabel(char color)
         case 'W': return "White";
         case 'N': return "Brown";
         case 'Y': return "Yellow";
+
+        case 'C': return "Arrows";
+        case 'D': return "Circles";
+        case 'E': return "WhiteDiamond";
+        case 'F': return "BlackX";
     };
     return "Unknown";
 }
@@ -573,8 +578,11 @@ int solverRecursiveSolve(Solver *solver, NodeList *nodeList, int remainingMoves)
                 continue;
 
             ++solver->attempts;
-            if((solver->attempts % 100000) == 0)
-                printf("                                                              attempts: %d (%ums)\n", solver->attempts, elapsedMS(&solver->timer));
+            if(solver->verboseDepth >= 0)
+            {
+                if((solver->attempts % 100000) == 0)
+                    printf("                                                              attempts: %d (%ums)\n", solver->attempts, elapsedMS(&solver->timer));
+            }
 
             clonedList = nodeListClone(nodeList);
             clonedNode = clonedList->nodes[nodeIndex];
