@@ -1,0 +1,4 @@
+MOVE 1: change (8,1) to Red
+MOVE 2: change (8,1) to Green
+MOVE 3: change (1,1) to Blue
+Solved in 6 attempts. (0ms)

@@ -1,0 +1,3 @@
+MOVE 1: change (0,0) to Black
+MOVE 2: change (0,0) to Red
+Solved in 2 attempts. (0ms)

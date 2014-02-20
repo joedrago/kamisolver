@@ -1,0 +1,4 @@
+MOVE 1: change (4,2) to Arrows
+MOVE 2: change (4,1) to BlackX
+MOVE 3: change (2,0) to WhiteDiamond
+Solved in 4 attempts. (0ms)
