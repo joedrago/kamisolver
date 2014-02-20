@@ -1,0 +1,9 @@
+MOVE 1: change (8,4) to Blue
+MOVE 2: change (9,2) to Red
+MOVE 3: change (9,2) to Blue
+MOVE 4: change (11,0) to Red
+MOVE 5: change (11,0) to Blue
+MOVE 6: change (5,0) to White
+MOVE 7: change (5,0) to Blue
+MOVE 8: change (2,0) to Red
+Solved in 9 attempts. (0ms)

@@ -1,0 +1,6 @@
+MOVE 1: change (9,2) to Green
+MOVE 2: change (0,0) to Brown
+MOVE 3: change (0,0) to Orange
+MOVE 4: change (0,0) to Green
+MOVE 5: change (0,0) to Red
+Solved in 6 attempts. (0ms)

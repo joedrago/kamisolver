@@ -1,0 +1,5 @@
+MOVE 1: change (7,0) to Black
+MOVE 2: change (12,0) to Black
+MOVE 3: change (5,0) to Green
+MOVE 4: change (2,0) to Red
+Solved in 16 attempts. (0ms)

@@ -1,0 +1,7 @@
+MOVE 1: change (6,2) to Brown
+MOVE 2: change (10,0) to Orange
+MOVE 3: change (2,0) to Brown
+MOVE 4: change (2,0) to Green
+MOVE 5: change (2,0) to White
+MOVE 6: change (2,0) to Yellow
+Solved in 8 attempts. (0ms)

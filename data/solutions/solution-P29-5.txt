@@ -1,0 +1,6 @@
+MOVE 1: change (11,0) to BlackX
+MOVE 2: change (4,0) to WhiteDiamond
+MOVE 3: change (4,0) to Circles
+MOVE 4: change (1,0) to Arrows
+MOVE 5: change (0,0) to BlackX
+Solved in 1287 attempts. (15ms)

@@ -1,0 +1,4 @@
+MOVE 1: change (6,2) to Red
+MOVE 2: change (3,2) to Black
+MOVE 3: change (0,0) to White
+Solved in 4 attempts. (0ms)

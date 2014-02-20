@@ -1,0 +1,4 @@
+MOVE 1: change (12,0) to Red
+MOVE 2: change (0,0) to Red
+MOVE 3: change (0,0) to Yellow
+Solved in 3 attempts. (0ms)
