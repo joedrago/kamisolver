@@ -15,7 +15,7 @@ Node::Node(int x, int y, int color, int id)
 , color_(color)
 , id_(id)
 {
-    printf("%sN%08x: new %c at (%d,%d)\n", indent(), this, color_ + 'A', x_, y_);
+    printf("%sN%p: new %c at (%d,%d)\n", indent(), this, color_ + 'A', x_, y_);
 }
 
 Node::~Node()
@@ -25,7 +25,7 @@ Node::~Node()
         i->reset();
     }
 
-    printf("%sN%08x: deleted %c at (%d,%d)\n", indent(), this, color_ + 'A', x_, y_);
+    printf("%sN%p: deleted %c at (%d,%d)\n", indent(), this, color_ + 'A', x_, y_);
 }
 
 void Node::connect(std::shared_ptr<Node> const & other)
@@ -130,7 +130,7 @@ void Node::dump(FILE * f, int width, int height)
     char const * textColor;
 
     colorToHex(color_, fillColor, textColor);
-    fprintf(f, "N%08x [style=filled; fillcolor=\"%s\"; fontcolor=\"%s\"; label=\"%d, %d\"; pos=\"%f,%f\" ];\n",
+    fprintf(f, "N%p [style=filled; fillcolor=\"%s\"; fontcolor=\"%s\"; label=\"%d, %d\"; pos=\"%f,%f\" ];\n",
         this,
         fillColor,
         textColor,
@@ -143,7 +143,7 @@ void Node::dump(FILE * f, int width, int height)
         std::shared_ptr<Node> const & node = *i;
         if (id() <= node->id())
         {
-            fprintf(f, "N%08x -- N%08x; ", this, node.get());
+            fprintf(f, "N%p -- N%p; ", this, node.get());
         }
     }
     fprintf(f, "\n");

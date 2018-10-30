@@ -14,7 +14,7 @@ int main(int argc, char **argv)
 
     char const * filename = argv[1];
     int turns = atoi(argv[2]);
-    int verboseDepth = (argc > 3) ? atoi(argv[3]) : 0;
+//    int verboseDepth = (argc > 3) ? atoi(argv[3]) : 0;
 
     Puzzle * puzzle = Puzzle::create(filename);
     if (!puzzle)
@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     if (solver.solve(*puzzle, turns, moves))
     {
         Solver::Metrics metrics = solver.metrics();
-        printf("Solved with %d turns in %d attempts!\n", moves.size(), metrics.copies);
+        printf("Solved with %d turns in %d attempts!\n", (int)moves.size(), metrics.copies);
         for (unsigned i = 0; i < moves.size(); ++i)
         {
             Solver::Move const & move = moves[i];
